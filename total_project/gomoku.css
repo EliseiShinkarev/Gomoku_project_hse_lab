@@ -1,0 +1,26 @@
+.main-block {
+  width: 570px;
+  height: 570px;
+  margin: 30px auto;
+  border: 1px solid black;
+}
+
+.header {
+  width: available;
+  height: 30px;
+}
+
+.block {
+  width: 28px;
+  height: 28px;
+  float: left;
+  border: 1px solid black;
+}
+
+.black {
+  background: black;
+}
+
+.white {
+  background: white;
+}
