@@ -12,17 +12,24 @@ var comp_turn = 0;
 var attack_const = 1.;
 var defense_const = 1.;
 var caution_const = 1.;
-var empty_value = 0.015;
-var eps = 0.03;
+var empty_value = 0.005;
+var eps = 0.001;
 var first_player_is_human;
 var second_player_is_human;
 var cur_set = new Set();
 var player1_set = new Set();
 var player2_set = new Set();
 var cur_arr = new Array(0);
-var player1_arr = new Array(0);
-var player2_arr = new Array(0);
 
+
+function HasEl(obj, el) {
+  for (const i of obj) {
+    if (i.toString() === el.toString()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function compareNumbers(a, b) {
   return b - a;
@@ -60,14 +67,13 @@ function ResetBoard() { // функция сброса настроек
   }
   turn_cnt = 0;
   cur_pos = 0;
-  cur_set = new Set();
-  player1_set = new Set();
-  player2_set = new Set();
+  cur_set.clear();
+  player1_set.clear();
+  player2_set.clear();
+  human_turn = false;
   first_player_is_human = confirm("Is first player a human?");
   second_player_is_human = confirm("Is second player a human?");
   cur_arr = new Array(0);
-  player1_arr = new Array(0);
-  player2_arr = new Array(0);
   Game();
   // x = prompt("print win parameter for first player", 5);
   // y = prompt("print win parameter for second player", 5);
@@ -83,7 +89,7 @@ function ReconstructBoardValues() { // Пересчитываем значени
   let v_max = 0;
   let new_arr = new Array(0);
   for (let index = 0; index < h * w; ++index) {
-    if (!cur_set.has(index)) {
+    if (!HasEl(cur_set, index)) {
       let attack = attack_const * CountDiameterValue1(index) + attack_const * attack_const * CountRayValue1(index); // A
       let defense = defense_const * CountDiameterValue2(index) + defense_const * defense_const * CountRayValue2(index); // D
       value = attack - caution_const * defense + CountEmptyValue(index);
@@ -125,7 +131,7 @@ function delay(milliseconds){
 
 function CountDiameterValue1(index) { // функция подсчета ценности клетки радиусом для первого игрока
   let value = 0;
-  if (cur_set.has(index)) {
+  if (HasEl(cur_set, index)) {
     return 0;
   }
   let j = index % w;
@@ -143,9 +149,9 @@ function CountDiameterValue1(index) { // функция подсчета цен�
     if (j + k < w && j - k >= 0) {
       let cur_index1 = w * (i) + (j + k);
       let cur_index2 = w * (i) + (j - k);
-      if (player1_set.has(cur_index1) && player1_set.has(cur_index2)) {
+      if (HasEl(player1_set, cur_index1) && HasEl(player1_set, cur_index2)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index1) || player2_set.has(cur_index2)) {
+      } else if (HasEl(player2_set, cur_index1) || HasEl(player2_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -160,9 +166,9 @@ function CountDiameterValue1(index) { // функция подсчета цен�
     if (i + k < h && i - k >= 0) {
       let cur_index1 = w * (i + k) + (j);
       let cur_index2 = w * (i - k) + (j);
-      if (player1_set.has(cur_index1) && player1_set.has(cur_index2)) {
+      if (HasEl(player1_set, cur_index1) && HasEl(player1_set, cur_index2)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index1) || player2_set.has(cur_index2)) {
+      } else if (HasEl(player2_set, cur_index1) || HasEl(player2_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -177,9 +183,9 @@ function CountDiameterValue1(index) { // функция подсчета цен�
     if (i + k < h && i - k >= 0 && j + k < w && j - k >= 0) {
       let cur_index1 = w * (i + k) + (j + k);
       let cur_index2 = w * (i - k) + (j - k);
-      if (player1_set.has(cur_index1) && player1_set.has(cur_index2)) {
+      if (HasEl(player1_set, cur_index1) && HasEl(player1_set, cur_index2)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index1) || player2_set.has(cur_index2)) {
+      } else if (HasEl(player2_set, cur_index1) || HasEl(player2_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -193,9 +199,9 @@ function CountDiameterValue1(index) { // функция подсчета цен�
     if (i + k < h && i - k >= 0 && j + k < w && j - k >= 0) {
       let cur_index1 = w * (i - k) + (j + k);
       let cur_index2 = w * (i + k) + (j - k);
-      if (player1_set.has(cur_index1) && player1_set.has(cur_index2)) {
+      if (HasEl(player1_set, cur_index1) && HasEl(player1_set, cur_index2)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index1) || player2_set.has(cur_index2)) {
+      } else if (HasEl(player2_set, cur_index1) || HasEl(player2_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -211,7 +217,7 @@ function CountDiameterValue1(index) { // функция подсчета цен�
 
 function CountRayValue1(index) { // функция посчета ценности клетки лучом для первого игрока
   let value = 0;
-  if (cur_set.has(index)) {
+  if (HasEl(cur_set, index)) {
     return 0;
   }
   let j = index % w;
@@ -221,9 +227,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w) {
       let cur_index = w * (i) + (j + k);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -238,9 +244,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0) {
       let cur_index = w * (i) + (j - k);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -254,9 +260,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (i - k >= 0) {
       let cur_index = w * (i - k) + (j);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -270,9 +276,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (i + k < h) {
       let cur_index = w * (i + k) + (j);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -287,9 +293,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w && i - k >= 0) {
       let cur_index = w * (i - k) + (j + k);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -303,9 +309,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w && i + k < h) {
       let cur_index = w * (i + k) + (j + k);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -319,9 +325,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0 && i - k >= 0) {
       let cur_index = w * (i - k) + (j - k);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -335,9 +341,9 @@ function CountRayValue1(index) { // функция посчета ценност
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0 && i + k < h) {
       let cur_index = w * (i + k) + (j - k);
-      if (player1_set.has(cur_index)) {
+      if (HasEl(player1_set, cur_index)) {
         cur_v += 1;
-      } else if (player2_set.has(cur_index)) {
+      } else if (HasEl(player2_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -353,7 +359,7 @@ function CountRayValue1(index) { // функция посчета ценност
 
 function CountDiameterValue2(index) { // функция подсчета ценности клетки радиусом для второго игрока
   let value = 0;
-  if (cur_set.has(index)) {
+  if (HasEl(cur_set, index)) {
     return 0;
   }
   let j = index % w;
@@ -371,9 +377,9 @@ function CountDiameterValue2(index) { // функция подсчета цен�
     if (j + k < w && j - k >= 0) {
       let cur_index1 = w * (i) + (j + k);
       let cur_index2 = w * (i) + (j - k);
-      if (player2_set.has(cur_index1) && player2_set.has(cur_index2)) {
+      if (HasEl(player2_set, cur_index1) && HasEl(player2_set, cur_index2)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index1) || player1_set.has(cur_index2)) {
+      } else if (HasEl(player1_set, cur_index1) || HasEl(player1_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -388,9 +394,9 @@ function CountDiameterValue2(index) { // функция подсчета цен�
     if (i + k < h && i - k >= 0) {
       let cur_index1 = w * (i + k) + (j);
       let cur_index2 = w * (i - k) + (j);
-      if (player2_set.has(cur_index1) && player2_set.has(cur_index2)) {
+      if (HasEl(player2_set, cur_index1) && HasEl(player2_set, cur_index2)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index1) || player1_set.has(cur_index2)) {
+      } else if (HasEl(player1_set, cur_index1) || HasEl(player1_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -405,9 +411,9 @@ function CountDiameterValue2(index) { // функция подсчета цен�
     if (i + k < h && i - k >= 0 && j + k < w && j - k >= 0) {
       let cur_index1 = w * (i + k) + (j + k);
       let cur_index2 = w * (i - k) + (j - k);
-      if (player2_set.has(cur_index1) && player2_set.has(cur_index2)) {
+      if (HasEl(player2_set, cur_index1) && HasEl(player2_set, cur_index2)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index1) || player1_set.has(cur_index2)) {
+      } else if (HasEl(player1_set, cur_index1) || HasEl(player1_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -421,9 +427,9 @@ function CountDiameterValue2(index) { // функция подсчета цен�
     if (i + k < h && i - k >= 0 && j + k < w && j - k >= 0) {
       let cur_index1 = w * (i - k) + (j + k);
       let cur_index2 = w * (i + k) + (j - k);
-      if (player2_set.has(cur_index1) && player2_set.has(cur_index2)) {
+      if (HasEl(player2_set, cur_index1) && HasEl(player2_set, cur_index2)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index1) || player1_set.has(cur_index2)) {
+      } else if (HasEl(player1_set, cur_index1) || HasEl(player1_set, cur_index2)) {
         cur_v = 0;
         break;
       }
@@ -439,7 +445,7 @@ function CountDiameterValue2(index) { // функция подсчета цен�
 
 function CountRayValue2(index) { // функция подсчета ценности клетки лучом для второго игрока
   let value = 0;
-  if (cur_set.has(index)) {
+  if (HasEl(cur_set, index)) {
     return 0;
   }
   let j = index % w;
@@ -449,9 +455,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w) {
       let cur_index = w * (i) + (j + k);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -466,9 +472,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0) {
       let cur_index = w * (i) + (j - k);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -482,9 +488,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (i - k >= 0) {
       let cur_index = w * (i - k) + (j);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -498,9 +504,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (i + k < h) {
       let cur_index = w * (i + k) + (j);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -515,9 +521,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w && i - k >= 0) {
       let cur_index = w * (i - k) + (j + k);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -531,9 +537,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w && i + k < h) {
       let cur_index = w * (i + k) + (j + k);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -547,9 +553,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0 && i - k >= 0) {
       let cur_index = w * (i - k) + (j - k);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -563,9 +569,9 @@ function CountRayValue2(index) { // функция подсчета ценнос
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0 && i + k < h) {
       let cur_index = w * (i + k) + (j - k);
-      if (player2_set.has(cur_index)) {
+      if (HasEl(player2_set, cur_index)) {
         cur_v += 1;
-      } else if (player1_set.has(cur_index)) {
+      } else if (HasEl(player1_set, cur_index)) {
         cur_v = 0;
         break;
       }
@@ -580,7 +586,7 @@ function CountRayValue2(index) { // функция подсчета ценнос
 
 function CountEmptyValue(index) { // функция подсчета потенциальных позиций
   let value = 0;
-  if (cur_set.has(index)) {
+  if (HasEl(cur_set, index)) {
     return 0;
   }
   let j = index % w;
@@ -589,7 +595,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w) {
       let cur_index = w * (i) + (j + k);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     } // count R row
@@ -598,7 +604,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0) {
       let cur_index = w * (i) + (j - k);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -607,7 +613,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (i - k >= 0) {
       let cur_index = w * (i - k) + (j);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -616,7 +622,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (i + k < h) {
       let cur_index = w * (i + k) + (j);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -625,7 +631,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w && i - k >= 0) {
       let cur_index = w * (i - k) + (j + k);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -634,7 +640,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (j + k < w && i + k < h) {
       let cur_index = w * (i + k) + (j + k);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -643,7 +649,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0 && i - k >= 0) {
       let cur_index = w * (i - k) + (j - k);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -652,7 +658,7 @@ function CountEmptyValue(index) { // функция подсчета потен�
   for (let k = 1; k <= x - 1; ++k) {
     if (j - k >= 0 && i + k < h) {
       let cur_index = w * (i + k) + (j - k);
-      if (!player1_set.has(cur_index) && !player2_set.has(cur_index)) {
+      if (!HasEl(player1_set, cur_index) && !HasEl(player2_set, cur_index)) {
         value += empty_value ** k;
       }
     }
@@ -676,7 +682,7 @@ function FourLinesCheker(player, index, flag) { // для подсчета вы�
       break;
     }
     let cur_index = w * i + (j + k);
-    if (player.has(cur_index)) {
+    if (HasEl(player, cur_index)) {
       counter += 1;
     } else {
       break;
@@ -693,7 +699,7 @@ function FourLinesCheker(player, index, flag) { // для подсчета вы�
       break;
     }
     let cur_index = w * (i + k) + j;
-    if (player.has(cur_index)) {
+    if (HasEl(player, cur_index)) {
       counter += 1;
     } else {
       break;
@@ -709,7 +715,7 @@ function FourLinesCheker(player, index, flag) { // для подсчета вы�
       break;
     }
     let cur_index = w * (i + k) + (j + k);
-    if (player.has(cur_index)) {
+    if (HasEl(player, cur_index)) {
       counter += 1;
     } else {
       break;
@@ -726,24 +732,22 @@ function FourLinesCheker(player, index, flag) { // для подсчета вы�
       break;
     }
     let cur_index = w * (i + k) + (j - k);
-    if (player.has(cur_index)) {
+    if (HasEl(player, cur_index)) {
       counter += 1;
     } else {
       break;
     }
   }
 
-  alert("done");
   return (param === counter);
 }
 
 function WinCheker() { // функция, смотрящая есть ли победитель (не работает)
-  alert("cheker");
   for (let index = 0; index < h * w; ++index) {
-    if (player1_set.has(index) && FourLinesCheker(player1_set, index, 1)) {
+    if (HasEl(player1_set, index) && FourLinesCheker(player1_set, index, 1)) {
         alert("First player is a winner!");
         return true;
-    } else if (player2_set.has(index) && FourLinesCheker(player2_set, index, 2)) {
+    } else if (HasEl(player2_set, index) && FourLinesCheker(player2_set, index, 2)) {
         alert("Second player is a winner!");
         return true;
     }
@@ -785,23 +789,16 @@ function ShowNextPos() { // функция, показывающая следу�
 }
 
 async function PutStone(id) {
-  // let str = `${id} ${player1_set.has(id) || player2_set.has(id)} ${cur_arr.length}`;
-  // alert(str);
-  // for (let item of cur_arr) {
-  //   alert(item);
-  // }
-  if (player1_set.has(id) || player2_set.has(id)) {
+  if (HasEl(cur_set, id)) {
     alert("incorrect position");
     return;
   }
   let el = document.getElementById(id);
   if (turn_cnt % 2 === 0) {
     el.classList.add("dot1");
-    player1_arr.push(id);
     player1_set.add(id);
   } else {
     el.classList.add("dot2");
-    player2_arr.push(id);
     player2_set.add(id);
   }
 
@@ -811,7 +808,7 @@ async function PutStone(id) {
   cur_pos = turn_cnt;
   human_turn = false;
 
-  alert("WIN");
+  await delay(200);
   if (WinCheker()) {
     alert("reset");
     ResetBoard();
