@@ -1,6 +1,7 @@
 var divSquare = '<div id="$coord" onclick="HumanTurn()" class="block"></div>'
 var prev_clicker = '<button id="prev_pos" onclick="ShowPrevPos()">Посмотреть предыдущее состояние</button>'
 var next_clicker = '<button id="next_pos" onclick="ShowNextPos()">Посмотреть следующее состояние</button>'
+var reset_clicker = '<button id="reset_id" onclick="ResetBoard()">Перезапустить игру</button>'
 var turn_cnt = 0; <!--параметр, подсчитывающий количество сделанных ходов-->
 var cur_pos = 0; <!--параметр текущей позиции-->
 var h = 19; <!--параметр высоты-->
@@ -9,17 +10,24 @@ var x = 5; <!--параметр победы одного игрока-->
 var y = 5; <!--параметр победы второго игрока-->
 var human_turn = false; <!--параметр, позволяющий позволять человеку ходить-->
 var comp_turn = 0; <!--параметр, отвечающий за индекс, куда компьютер будет ходить-->
-var attack_const = 1.; <!--параметр атаки-->
-var defense_const = 1.; <!--параметр защиты-->
+var attack_const = 1.2; <!--параметр атаки-->
+var defense_const = -1.; <!--параметр защиты-->
 var caution_const = 1.; <!--параметр сдержанности-->
-var empty_value = 0.005; <!--параметр ценности пусток клетки-->
+var empty_value = 0.005; <!--параметр ценности пусток клетки--> // useless now
 var eps = 0.001; <!--параметр отклонения-->
 var first_player_is_human; <!--булевый параметр-->
 var second_player_is_human; <!--булевый параметр-->
-var cur_set = new Set(); <!--Сет, поддерживающий все проставленные камни-->
-var player1_set = new Set(); <!--Сет, поддерживающий все проставленные камни первым игроком-->
-var player2_set = new Set(); <!--Сет, поддерживающий все проставленные камни вторым игроком-->
-var cur_arr = new Array(0); <!--аналогичен cur_set, от одного из них в будущем избавимся-->
+var player1_arr = new Array(0); <!--Сет, поддерживающий все проставленные камни первым игроком-->
+var player2_arr = new Array(0); <!--Сет, поддерживающий все проставленные камни вторым игроком-->
+var cur_arr = new Array(0); <!--Массив, поддерживающий все проставленные камни-->
+var array_of_turns = new Array(0);
+var found_winner_flag = false;
+var queue_type = 0;
+
+const Turn = {
+  first: 0,
+  second: 1
+};
 
 <!--Блок, вспомогательных функций-->
 function HasEl(obj, el) { // функция, определяющая есть ли в объекте данный элемент (встроенные работают плохо)
@@ -46,15 +54,95 @@ function delay(milliseconds){ // функция остановки функци�
   });
 }
 
+function generateArray(n, p) {
+  var arr = [];
+  for (var i = 0; i < n; i++) {
+    var num = Math.random();
+    if (num < p) {
+      arr.push(Turn.first);
+    } else {
+      arr.push(Turn.second);
+    }
+  }
+  return arr;
+}
+
 <!--Блок, игровых функций-->
 // TODO: time controller
+
+function ConstructQueue() { // функция выплывающего окна с выбором очереди
+  $(function() {
+    $("#popup").dialog({ // всплывающее окно с тремя кнопками
+      modal: true,
+      buttons: {
+        "The probability of the first player's move is р": function() {
+          queue_type = 2;
+          $(this).dialog("close");
+          DrawBoard(); // Отрисовываем доску
+        },
+        "Prefix - Period": function() {
+          queue_type = 1;
+          $(this).dialog("close");
+          DrawBoard(); // Отрисовываем доску
+        },
+        "Classic queue": function() {
+          $(this).dialog("close");
+          DrawBoard(); // Отрисовываем доску
+        }
+      }
+    });
+  });
+}
+
 function DrawBoard() { // функция отрисовки доски
   $('.header').append(prev_clicker); // добавляем в header кнопку отката назад
   $('.header').append(next_clicker); // добавляем в header кнопку отката вперед
+  $('.header').append(reset_clicker); // добавляем в header кнопку отката вперед
+
+  array_of_turns = new Array(h * w);
+  if (queue_type === 0) { // классический вариант очереди
+    for (let i = 0; i < h * w; ++i) {
+      if (i % 2 === 0) {
+        array_of_turns[i] = Turn.first;
+      } else {
+        array_of_turns[i] = Turn.second;
+      }
+    }
+  } else if (queue_type === 1) { // генерируем последовательность из префикса и периода
+    let prefix = prompt("print prefix: 0 - first player turn, 1 - second player turn", "01010011");
+    let period = prompt("print period: 0 - first player turn, 1 - second player turn", "01");
+    let ind = 0;
+    for (let i of prefix) {
+      if (i === "0") {
+        array_of_turns[ind] = Turn.first;
+      } else {
+        array_of_turns[ind] = Turn.second;
+      }
+      ++ind;
+      if (ind >= h * w) {
+        break;
+      }
+    }
+    while (ind < h * w) {
+      for (let i of period) {
+        if (i === "0") {
+          array_of_turns[ind] = Turn.first;
+        } else {
+          array_of_turns[ind] = Turn.second;
+        }
+        ++ind;
+        if (ind >= h * w) {
+          break;
+        }
+      }
+    }
+  } else if (queue_type === 2) {
+    let p = prompt("print probability of the first player's move", 50);
+    array_of_turns = generateArray(h * w, p / 100); // генерируем случайную последовательность
+  }
 
   first_player_is_human = confirm("Is first player a human?"); // назначаем первого игрока
   second_player_is_human = confirm("Is second player a human?"); // назначаем второго игрока
-
   // x = prompt("print win parameter for first player", 5); // вводим параметр первого игрока
   // y = prompt("print win parameter for second player", 5); // вводим параметр второго игрока
 
@@ -76,9 +164,8 @@ function ResetBoard() { // функция сброса настроек
   }
   turn_cnt = 0; // обновляем все параметры до начальных
   cur_pos = 0;
-  cur_set.clear();
-  player1_set.clear();
-  player2_set.clear();
+  player1_arr = new Array(0);
+  player2_arr = new Array(0);
   human_turn = false;
   first_player_is_human = confirm("Is first player a human?");
   second_player_is_human = confirm("Is second player a human?");
@@ -99,14 +186,34 @@ async function Game() { // Начало игры, а точнее первый �
 }
 <!--Блок, математических функций для подсчета или проверки ценности клетки-->
 function ReconstructBoardValues() { // Пересчитываем значение каждой клетки
+  let our_set = player1_arr;
+  let rival_set = player2_arr;
+  let flag = 1;
+  let rival_flag = 2;
+  if (array_of_turns[turn_cnt] === Turn.second) {
+    our_set = player2_arr;
+    rival_set = player1_arr;
+    flag = 2;
+    rival_flag = 1;
+  }
+
   let value = 0;
   let new_arr = new Array(0);
   for (let index = 0; index < h * w; ++index) {
-    if (!HasEl(cur_set, index)) { // Если есть элемент, то нет смысла подсчитывать ценность
-      let attack = attack_const * CountDiameterValue(index, player1_set, player2_set, 1) + (attack_const ** 2) * CountRayValue(index, player1_set, player2_set, 1); // A power
-      let defense = defense_const * CountDiameterValue(index, player2_set, player1_set, 2) + (defense_const ** 2) * CountRayValue(index, player2_set, player1_set, 2); // D power
-      value = attack - caution_const * defense + CountEmptyValue(index); // ценность клетки (может меняться)
-      // value = Math.abs(value);
+    if (!HasEl(cur_arr, index)) { // Если есть элемент, то нет смысла подсчитывать ценность
+      let attack = attack_const * CountCellValue(index, our_set, rival_set, flag); // A power
+      if (found_winner_flag) {
+        comp_turn = index;
+        found_winner_flag = false;
+        return;
+      }
+      let defense = defense_const * CountCellValue(index, rival_set, our_set, rival_flag); // D power
+      if (found_winner_flag) {
+        comp_turn = index;
+        found_winner_flag = false;
+        return;
+      }
+      value = attack - caution_const * defense; // ценность клетки (может меняться)
       new_arr.push({val: value, ind: index}); // добавляем пару: ценность, индекс
       value = 0;
     }
@@ -125,13 +232,11 @@ function ReconstructBoardValues() { // Пересчитываем значени
   for (let i = 0; i < max_index; ++i) {
     total_arr.push(new_arr[i].ind);
   }
+
   comp_turn = arrayRandElement(total_arr); // выбираем случайный элемент в итоговом массиве
-  // comp_turn = new_arr[0].ind;
-  // alert(comp_turn);
-  // alert(comp_turn);
 }
 
-function CountDiameterValue(index, cur_player_set, rival_set, flag) { // функция подсчета ценности клетки радиусом
+function CountCellValue(index, cur_player_set, rival_set, flag) { // функция посчета ценности клетки
   let value = 0;
   let j = index % w;
   let i = (index - j) / w; // w * i + j
@@ -139,303 +244,119 @@ function CountDiameterValue(index, cur_player_set, rival_set, flag) { // фун�
   if (flag === 2) {
     param = y;
   }
+  let cnt_of_stones = 0;
+  let it_wont_fit = false;
 
-  let radius = 0;
-  if (param % 2 === 1) {
-    radius = (param - 1) / 2;
-  } else {
-    radius = (param - 2) / 2;
+  for (let index_pos = 0; index_pos < param; ++index_pos) { // horizontal values
+    for (let k = 0 - index_pos; k < param - index_pos; ++k) {
+      if (j + k < w && j + k >= 0) {
+        let cur_index = w * (i) + (j + k);
+        if (HasEl(cur_player_set, cur_index)) {
+          cnt_of_stones += 1;
+        } else if (HasEl(rival_set, cur_index)) {
+          cnt_of_stones = 0;
+          break;
+        }
+      } else {
+        it_wont_fit = true;
+      }
+    }
+    if (it_wont_fit) {
+      cnt_of_stones = -5 * param;
+    }
+    value += (param - cnt_of_stones);
+    // value += cnt_of_stones;
+    if (cnt_of_stones === param - 1) {
+      found_winner_flag = true;
+      return value;
+    }
+    it_wont_fit = false;
+    cnt_of_stones = 0;
   }
 
-  let cur_v = 0;
-  for (let k = 1; k <= radius; ++k) {
-    if (j + k < w && j - k >= 0) {
-      let cur_index1 = w * (i) + (j + k);
-      let cur_index2 = w * (i) + (j - k);
-      if (HasEl(cur_player_set, cur_index1) && HasEl(cur_player_set, cur_index2)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index1) || HasEl(rival_set, cur_index2)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
-    }
-  } // horizontal diameter
-  value += cur_v;
-  cur_v = 0;
 
-  for (let k = 1; k <= radius; ++k) {
-    if (i + k < h && i - k >= 0) {
-      let cur_index1 = w * (i + k) + (j);
-      let cur_index2 = w * (i - k) + (j);
-      if (HasEl(cur_player_set, cur_index1) && HasEl(cur_player_set, cur_index2)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index1) || HasEl(rival_set, cur_index2)) {
-        cur_v = 0;
-        break;
+  for (let index_pos = 0; index_pos < param; ++index_pos) { // column values
+    for (let k = 0 - index_pos; k < param - index_pos; ++k) {
+      if (i - k >= 0 && i - k < h) {
+        let cur_index = w * (i - k) + (j);
+        if (HasEl(cur_player_set, cur_index)) {
+          cnt_of_stones += 1;
+        } else if (HasEl(rival_set, cur_index)) {
+          cnt_of_stones = 0;
+          break;
+        }
+      } else {
+        it_wont_fit = true;
       }
-    } else {
-      break;
     }
-  }// vertical diameter
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= radius; ++k) {
-    if (i + k < h && i - k >= 0 && j + k < w && j - k >= 0) {
-      let cur_index1 = w * (i + k) + (j + k);
-      let cur_index2 = w * (i - k) + (j - k);
-      if (HasEl(cur_player_set, cur_index1) && HasEl(cur_player_set, cur_index2)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index1) || HasEl(rival_set, cur_index2)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
+    if (it_wont_fit) {
+      cnt_of_stones = -5 * param;
     }
-  } // main diag diameter
-  value += cur_v;
-  cur_v = 0;
-  for (let k = 1; k <= radius; ++k) {
-    if (i + k < h && i - k >= 0 && j + k < w && j - k >= 0) {
-      let cur_index1 = w * (i - k) + (j + k);
-      let cur_index2 = w * (i + k) + (j - k);
-      if (HasEl(cur_player_set, cur_index1) && HasEl(cur_player_set, cur_index2)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index1) || HasEl(rival_set, cur_index2)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
+    value += (param - cnt_of_stones);
+    // value += cnt_of_stones;
+    if (cnt_of_stones === param - 1) {
+      found_winner_flag = true;
+      return value;
     }
-  }  // secondary diag diameter
-  value += cur_v;
-  return value;
-}
-
-function CountRayValue(index, cur_player_set, rival_set, flag) { // функция посчета ценности клетки лучом
-  let value = 0;
-  let j = index % w;
-  let i = (index - j) / w; // w * i + j
-  let param = x;
-  if (flag === 2) {
-    param = y;
+    it_wont_fit = false;
+    cnt_of_stones = 0;
   }
 
-  let cur_v = 0;
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j + k < w) {
-      let cur_index = w * (i) + (j + k);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
+  for (let index_pos = 0; index_pos < param; ++index_pos) { // main diag values
+    for (let k = 0 - index_pos; k < param - index_pos; ++k) {
+      if (i - k >= 0 && i - k < h && j - k < w && j - k >= 0) {
+        let cur_index = w * (i - k) + (j - k);
+        if (HasEl(cur_player_set, cur_index)) {
+          cnt_of_stones += 1;
+        } else if (HasEl(rival_set, cur_index)) {
+          cnt_of_stones = 0;
+          break;
+        }
+      } else {
+        it_wont_fit = true;
       }
-    } else {
-      break;
     }
-  } // count R row
-
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j - k >= 0) {
-      let cur_index = w * (i) + (j - k);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
+    if (it_wont_fit) {
+      cnt_of_stones = -5 * param;
     }
-  }// count L row
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (i - k >= 0) {
-      let cur_index = w * (i - k) + (j);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
+    value += (param - cnt_of_stones);
+    // value += cnt_of_stones;
+    if (cnt_of_stones === param - 1) {
+      found_winner_flag = true;
+      return value;
     }
-  }// count U column
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (i + k < h) {
-      let cur_index = w * (i + k) + (j);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
-    }
-  }// count D column
-
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j + k < w && i - k >= 0) {
-      let cur_index = w * (i - k) + (j + k);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
-    }
-  }// count RU diag
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j + k < w && i + k < h) {
-      let cur_index = w * (i + k) + (j + k);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
-    }
-  }// count RD diag
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j - k >= 0 && i - k >= 0) {
-      let cur_index = w * (i - k) + (j - k);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
-    }
-  }// count LU diag
-  value += cur_v;
-  cur_v = 0;
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j - k >= 0 && i + k < h) {
-      let cur_index = w * (i + k) + (j - k);
-      if (HasEl(cur_player_set, cur_index)) {
-        cur_v += 1;
-      } else if (HasEl(rival_set, cur_index)) {
-        cur_v = 0;
-        break;
-      }
-    } else {
-      break;
-    }
-  }// count LD diag
-  value += cur_v;
-  return value;
-}
-
-function CountEmptyValue(index) { // функция подсчета потенциальных позиций
-  let value = 0;
-  let j = index % w;
-  let i = (index - j) / w; // w * i + j
-  let param = Math.min(x, y);
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j + k < w) {
-      let cur_index = w * (i) + (j + k);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
-    } // count R row
+    it_wont_fit = false;
+    cnt_of_stones = 0;
   }
 
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j - k >= 0) {
-      let cur_index = w * (i) + (j - k);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
+  for (let index_pos = 0; index_pos < param; ++index_pos) { // main diag values
+    for (let k = 0 - index_pos; k < param - index_pos; ++k) {
+      if (i - k >= 0 && i - k < h && j + k < w && j + k >= 0) {
+        let cur_index = w * (i - k) + (j + k);
+        if (HasEl(cur_player_set, cur_index)) {
+          cnt_of_stones += 1;
+        } else if (HasEl(rival_set, cur_index)) {
+          cnt_of_stones = 0;
+          break;
+        }
+      } else {
+        it_wont_fit = true;
       }
     }
-  }// count L row
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (i - k >= 0) {
-      let cur_index = w * (i - k) + (j);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
+    if (it_wont_fit) {
+      cnt_of_stones = -5 * param;
     }
-  }// count U column
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (i + k < h) {
-      let cur_index = w * (i + k) + (j);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
+    value += (param - cnt_of_stones);
+    // value += cnt_of_stones;
+    if (cnt_of_stones === param - 1) {
+      found_winner_flag = true;
+      return value;
     }
-  }// count D column
+    it_wont_fit = false;
+    cnt_of_stones = 0;
+  }
 
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j + k < w && i - k >= 0) {
-      let cur_index = w * (i - k) + (j + k);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
-    }
-  }// count RU diag
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j + k < w && i + k < h) {
-      let cur_index = w * (i + k) + (j + k);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
-    }
-  }// count RD diag
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j - k >= 0 && i - k >= 0) {
-      let cur_index = w * (i - k) + (j - k);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
-    }
-  }// count LU diag
-
-  for (let k = 1; k <= param - 1; ++k) {
-    if (j - k >= 0 && i + k < h) {
-      let cur_index = w * (i + k) + (j - k);
-      if (!HasEl(cur_set, cur_index)) {
-        value += empty_value ** k;
-      }
-    }
-  }// count LD diag
-
-  return value;
+  return 1 / value;
 }
 
 function FourLinesCounter(player, index, flag) { // для подсчета выигрыша
@@ -515,10 +436,10 @@ function FourLinesCounter(player, index, flag) { // для подсчета вы
 
 function WinCheker() { // функция, смотрящая есть ли победитель
   for (let index = 0; index < h * w; ++index) {
-    if (HasEl(player1_set, index) && FourLinesCounter(player1_set, index, 1)) {
+    if (HasEl(player1_arr, index) && FourLinesCounter(player1_arr, index, 1)) {
         alert("First player is a winner!");
         return true;
-    } else if (HasEl(player2_set, index) && FourLinesCounter(player2_set, index, 2)) {
+    } else if (HasEl(player2_arr, index) && FourLinesCounter(player2_arr, index, 2)) {
         alert("Second player is a winner!");
         return true;
     }
@@ -527,6 +448,9 @@ function WinCheker() { // функция, смотрящая есть ли по�
 }
 <!--Блок взаимодействия компьютера или компа с интерфейсом-->
 function ShowPrevPos() { // Функция показа предыдущей позиции в журнале
+  if (!WinCheker()) {
+    return;
+  }
   if (cur_pos === 0) {
     alert('incorrect command');
   } else {
@@ -534,12 +458,14 @@ function ShowPrevPos() { // Функция показа предыдущей п�
     alert('prev turn = ' + cur_pos);
     let id = cur_arr[cur_pos];
     let el = document.getElementById(id); // находим индекс, откуда убераем камень
-    if (cur_pos % 2 === 0) {
+    if (array_of_turns[cur_pos] === Turn.first) {
       el.classList.remove("dot1");
     } else {
       el.classList.remove("dot2");
     }
   }
+
+  human_turn = (array_of_turns[cur_pos] === Turn.first && first_player_is_human) || (array_of_turns[cur_pos] === Turn.second && second_player_is_human);
 }
 
 function ShowNextPos() { // функция, показывающая следующую позицию в журнале
@@ -550,41 +476,57 @@ function ShowNextPos() { // функция, показывающая следу�
     let id = cur_arr[cur_pos]; // находим индекс, куда ставим камень
     let el = document.getElementById(id);
     // el.classList.add("dot");
-    if (cur_pos % 2 === 0) {
+    if (array_of_turns[cur_pos] === Turn.first) {
       el.classList.add("dot1");
     } else {
       el.classList.add("dot2");
     }
     ++cur_pos;
   }
+
+  human_turn = (array_of_turns[cur_pos] === Turn.first && first_player_is_human) || (array_of_turns[cur_pos] === Turn.second && second_player_is_human);
 }
 
 async function PutStone(id) { // функция вставки камня, обновления массивов
-  if (HasEl(cur_set, id)) {
+  if (cur_pos !== turn_cnt && human_turn === true) {
+
+    for (let i = turn_cnt; i > cur_pos; --i) {
+      if (array_of_turns[i] === Turn.first) {
+        player1_arr.pop();
+      } else {
+        player2_arr.pop();
+      }
+      cur_arr.pop();
+    }
+
+    turn_cnt = cur_pos;
+    found_winner_flag = false;
+  } else if (cur_pos !== turn_cnt && human_turn === false) {
+    return;
+  }
+  if (HasEl(cur_arr, id)) {
     alert("incorrect position");
     return;
   }
   let el = document.getElementById(id);
-  if (turn_cnt % 2 === 0) {
+  if (array_of_turns[turn_cnt] === Turn.first) {
     el.classList.add("dot1");
-    player1_set.add(id);
+    player1_arr.push(id);
   } else {
     el.classList.add("dot2");
-    player2_set.add(id);
+    player2_arr.push(id);
   }
 
   cur_arr.push(id);
-  cur_set.add(id);
   ++turn_cnt;
   cur_pos = turn_cnt;
   human_turn = false;
 
   await delay(200);
   if (WinCheker()) { // проверяем, появился ли победитель
-    alert("reset");
-    ResetBoard();
+    return;
   }
-  if ((turn_cnt % 2 === 0 && !first_player_is_human) || (turn_cnt % 2 === 1 && !second_player_is_human)) {
+  if ((array_of_turns[turn_cnt] === Turn.first && !first_player_is_human) || (array_of_turns[turn_cnt] === Turn.second && !second_player_is_human)) {
       ReconstructBoardValues(); // следующим ходит комп
       await delay(1500);
       AIturn();
@@ -608,4 +550,4 @@ function HumanTurn() { // Функция хода человека
 }
 
 
-DrawBoard(); // Отрисовываем доску
+ConstructQueue(); // выбор очереди
