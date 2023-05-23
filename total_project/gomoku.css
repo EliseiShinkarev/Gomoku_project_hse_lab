@@ -1,19 +1,33 @@
-.main-block {
-  width: 570px;
-  height: 570px;
-  margin: 30px auto;
-  border: 1px solid black;
-}
-
 .header {
-  width: available;
-  height: 30px;
+    width: available;
+    height: 50px;
 }
 
-.block {
+.window {
+  justify-content: center;
+  align-items: center;
+  display: flex;
+}
+
+.main-block {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.board {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+}
+
+.cell {
   width: 28px;
   height: 28px;
-  float: left;
   border: 1px solid black;
 }
 
