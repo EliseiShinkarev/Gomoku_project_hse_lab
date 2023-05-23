@@ -1,7 +1,6 @@
-var divSquare = '<div id="$coord" onclick="HumanTurn()" class="block"></div>'
-var prev_clicker = '<button id="prev_pos" onclick="ShowPrevPos()">Посмотреть предыдущее состояние</button>'
-var next_clicker = '<button id="next_pos" onclick="ShowNextPos()">Посмотреть следующее состояние</button>'
-var reset_clicker = '<button id="reset_id" onclick="ResetBoard()">Перезапустить игру</button>'
+var prev_clicker = '<button id="prev_pos" onclick="ShowPrevPos()">Show previous position</button>'
+var next_clicker = '<button id="next_pos" onclick="ShowNextPos()">Show next position</button>'
+var reset_clicker = '<button id="reset_id" onclick="ResetBoard()">Reset game</button>'
 var turn_cnt = 0; <!--параметр, подсчитывающий количество сделанных ходов-->
 var cur_pos = 0; <!--параметр текущей позиции-->
 var h = 19; <!--параметр высоты-->
@@ -94,10 +93,47 @@ function ConstructQueue() { // функция выплывающего окна 
   });
 }
 
+function RefreshTurnWindow(n) {
+  for (let i = 0; i < 5; ++i) {
+    let el = document.getElementById(i + n);
+    el.classList.remove("dot1");
+    el.classList.remove("dot2");
+  }
+
+  for (let i = 0; i < 5; ++i) {
+    let el = document.getElementById(i + n);
+    if (n > turn_cnt && (array_of_turns[turn_cnt + i] === Turn.first)) {
+      el.classList.add("dot1");
+    } else if (n > turn_cnt && (array_of_turns[turn_cnt + i] === Turn.second)) {
+      el.classList.add("dot2");
+    }
+  }
+}
+
+function TurnWindow(n) {
+  let window = document.createElement('div');
+  window.classList.add('window');
+  window.append("Next five turns: ");
+
+  for (let i = 0; i < 5; ++i) {
+    const cell = document.createElement('div');
+    cell.classList.add('cell');
+    cell.setAttribute('id', `${n + i}`);// создаем ячейки с уникальным id
+    window.appendChild(cell);
+  }
+  $('.header').append(window);
+}
+
 function DrawBoard() { // функция отрисовки доски
   $('.header').append(prev_clicker); // добавляем в header кнопку отката назад
   $('.header').append(next_clicker); // добавляем в header кнопку отката вперед
-  $('.header').append(reset_clicker); // добавляем в header кнопку отката вперед
+  $('.header').append(reset_clicker); // добавляем в header кнопку перезапуска игры
+  h = prompt("print board height", 19); // вводим параметр высоты доски
+  w = prompt("print board width", 19); // вводим параметр ширины доски
+  h = Math.min(h, 20);
+  w = Math.min(w, 40);
+  h = Math.max(1, h);
+  w = Math.max(1, w);
 
   array_of_turns = new Array(h * w);
   if (queue_type === 0) { // классический вариант очереди
@@ -141,18 +177,34 @@ function DrawBoard() { // функция отрисовки доски
     array_of_turns = generateArray(h * w, p / 100); // генерируем случайную последовательность
   }
 
+
   first_player_is_human = confirm("Is first player a human?"); // назначаем первого игрока
   second_player_is_human = confirm("Is second player a human?"); // назначаем второго игрока
-  // x = prompt("print win parameter for first player", 5); // вводим параметр первого игрока
-  // y = prompt("print win parameter for second player", 5); // вводим параметр второго игрока
-
+  x = prompt("print win parameter for first player", 5); // вводим параметр первого игрока
+  y = prompt("print win parameter for second player", 5); // вводим параметр второго игрока
+  x = Math.max(1, x);
+  y = Math.max(1, y);
+  x = Math.min(w * h, x);
+  y = Math.min(w * h, y);
+  <!--Построчно заполняем поле для игры-->
+  let main_block = document.querySelector('.main-block');
+  let board = document.createElement('div');
+  board.classList.add('board');
   for (let i = 0; i < h; ++i) {
+    const row = document.createElement('div');
+    row.classList.add('row');
     for (let j = 0; j < w; ++j) {
-      $('.main-block').append(divSquare
-        .replace('$coord', (w * i + j))); // создаем ячейки с уникальным id
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.setAttribute('id', `${i * w + j}`);// создаем ячейки с уникальным id
+      cell.addEventListener('click', HumanTurn);
+      row.appendChild(cell);
     }
+    board.appendChild(row);
   }
-
+  main_block.appendChild(board);
+  TurnWindow(w * h);
+  RefreshTurnWindow(h * w);
   Game(); // запускаем игру
 }
 
@@ -241,10 +293,13 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
   let j = index % w;
   let i = (index - j) / w; // w * i + j
   let param = x;
+  let rival_param = y;
   if (flag === 2) {
     param = y;
+    rival_param = x;
   }
   let cnt_of_stones = 0;
+  let cnt_of_rival_stones = 0;
   let it_wont_fit = false;
 
   for (let index_pos = 0; index_pos < param; ++index_pos) { // horizontal values
@@ -255,7 +310,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          break;
+          cnt_of_rival_stones += 1;
         }
       } else {
         it_wont_fit = true;
@@ -266,12 +321,13 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1) {
+    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
       found_winner_flag = true;
       return value;
     }
     it_wont_fit = false;
     cnt_of_stones = 0;
+    cnt_of_rival_stones = 0;
   }
 
 
@@ -283,7 +339,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          break;
+          cnt_of_rival_stones += 1;
         }
       } else {
         it_wont_fit = true;
@@ -294,12 +350,13 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1) {
+    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
       found_winner_flag = true;
       return value;
     }
     it_wont_fit = false;
     cnt_of_stones = 0;
+    cnt_of_rival_stones = 0;
   }
 
   for (let index_pos = 0; index_pos < param; ++index_pos) { // main diag values
@@ -310,7 +367,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          break;
+          cnt_of_rival_stones += 1;
         }
       } else {
         it_wont_fit = true;
@@ -321,12 +378,13 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1) {
+    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
       found_winner_flag = true;
       return value;
     }
     it_wont_fit = false;
     cnt_of_stones = 0;
+    cnt_of_rival_stones = 0;
   }
 
   for (let index_pos = 0; index_pos < param; ++index_pos) { // main diag values
@@ -337,7 +395,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          break;
+          cnt_of_rival_stones += 1;
         }
       } else {
         it_wont_fit = true;
@@ -348,12 +406,13 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1) {
+    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
       found_winner_flag = true;
       return value;
     }
     it_wont_fit = false;
     cnt_of_stones = 0;
+    cnt_of_rival_stones = 0;
   }
 
   return 1 / value;
@@ -455,7 +514,7 @@ function ShowPrevPos() { // Функция показа предыдущей п�
     alert('incorrect command');
   } else {
     --cur_pos;
-    alert('prev turn = ' + cur_pos);
+    // alert('prev turn = ' + cur_pos);
     let id = cur_arr[cur_pos];
     let el = document.getElementById(id); // находим индекс, откуда убераем камень
     if (array_of_turns[cur_pos] === Turn.first) {
@@ -472,7 +531,7 @@ function ShowNextPos() { // функция, показывающая следу�
   if (cur_pos === turn_cnt) {
     alert('incorrect command');
   } else {
-    alert('next turn = ' + (cur_pos + 1));
+    // alert('next turn = ' + (cur_pos + 1));
     let id = cur_arr[cur_pos]; // находим индекс, куда ставим камень
     let el = document.getElementById(id);
     // el.classList.add("dot");
@@ -526,13 +585,18 @@ async function PutStone(id) { // функция вставки камня, об�
   if (WinCheker()) { // проверяем, появился ли победитель
     return;
   }
+  if (turn_cnt === w * h) {
+    alert("It is draw");
+    return;
+  }
   if ((array_of_turns[turn_cnt] === Turn.first && !first_player_is_human) || (array_of_turns[turn_cnt] === Turn.second && !second_player_is_human)) {
       ReconstructBoardValues(); // следующим ходит комп
-      await delay(1500);
+      await delay(1000);
       AIturn();
   } else { // следующим ходит человек
       human_turn = true;
   }
+  RefreshTurnWindow(h * w);
 }
 
 function AIturn() { // Ход компьютера
