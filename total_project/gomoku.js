@@ -10,9 +10,8 @@ var y = 5; <!--параметр победы второго игрока-->
 var human_turn = false; <!--параметр, позволяющий позволять человеку ходить-->
 var comp_turn = 0; <!--параметр, отвечающий за индекс, куда компьютер будет ходить-->
 var attack_const = 1.2; <!--параметр атаки-->
-var defense_const = -1.; <!--параметр защиты-->
-var caution_const = 1.; <!--параметр сдержанности-->
-var empty_value = 0.005; <!--параметр ценности пусток клетки--> // useless now
+var defense_const = 1.; <!--параметр защиты-->
+var caution_const = 0.75; <!--параметр сдержанности-->
 var eps = 0.001; <!--параметр отклонения-->
 var first_player_is_human; <!--булевый параметр-->
 var second_player_is_human; <!--булевый параметр-->
@@ -22,6 +21,10 @@ var cur_arr = new Array(0); <!--Массив, поддерживающий вс�
 var array_of_turns = new Array(0);
 var found_winner_flag = false;
 var queue_type = 0;
+var cnt_of_win_alerts = 0;
+var found_index = -1;
+var three_row = -1;
+var rival_win_turn = -1;
 
 const Turn = {
   first: 0,
@@ -53,7 +56,7 @@ function delay(milliseconds){ // функция остановки функци�
   });
 }
 
-function generateArray(n, p) {
+function generateArray(n, p) { // генерируем массив размера n с вероятностью хода первого игрока = р
   var arr = [];
   for (var i = 0; i < n; i++) {
     var num = Math.random();
@@ -223,6 +226,7 @@ function ResetBoard() { // функция сброса настроек
   second_player_is_human = confirm("Is second player a human?");
   // x = prompt("print win parameter for first player", 5);
   // y = prompt("print win parameter for second player", 5);
+  cnt_of_win_alerts = 0;
   cur_arr = new Array(0);
   Game(); // запускаем игру заново
 }
@@ -237,6 +241,32 @@ async function Game() { // Начало игры, а точнее первый �
   }
 }
 <!--Блок, математических функций для подсчета или проверки ценности клетки-->
+
+function MissTurn(our_set, rival_set, max_value, flag, rival_flag) {
+  rival_set.push(max_value);
+  let value = 0;
+  let new_arr = new Array(0);
+  for (let index = 0; index < h * w; ++index) {
+    if (!HasEl(cur_arr, index)) { // Если есть элемент, то нет смысла подсчитывать ценность
+      let attack = attack_const * CountCellValue(index, our_set, rival_set, flag); // A power
+      let defense = defense_const * CountCellValue(index, rival_set, our_set, rival_flag); // D power
+      value = attack - caution_const * defense; // ценность клетки (может меняться)
+      if (found_winner_flag) {
+        new_arr = new Array(0);
+        new_arr.push({val: value, ind: index});
+        found_winner_flag = false;
+        rival_set.pop();
+        return new_arr;
+      }
+      value = attack - caution_const * defense; // ценность клетки (может меняться)
+      new_arr.push({val: value, ind: index}); // добавляем пару: ценность, индекс
+      value = 0;
+    }
+  }
+  rival_set.pop();
+  return new_arr.sort(comparePairs);
+}
+
 function ReconstructBoardValues() { // Пересчитываем значение каждой клетки
   let our_set = player1_arr;
   let rival_set = player2_arr;
@@ -250,8 +280,11 @@ function ReconstructBoardValues() { // Пересчитываем значени
   }
 
   let value = 0;
+  let rival_value = 0;
   let new_arr = new Array(0);
+  let new_rival_arr = new Array(0);
   for (let index = 0; index < h * w; ++index) {
+
     if (!HasEl(cur_arr, index)) { // Если есть элемент, то нет смысла подсчитывать ценность
       let attack = attack_const * CountCellValue(index, our_set, rival_set, flag); // A power
       if (found_winner_flag) {
@@ -259,21 +292,52 @@ function ReconstructBoardValues() { // Пересчитываем значени
         found_winner_flag = false;
         return;
       }
+
       let defense = defense_const * CountCellValue(index, rival_set, our_set, rival_flag); // D power
       if (found_winner_flag) {
-        comp_turn = index;
+        rival_win_turn = index;
         found_winner_flag = false;
-        return;
       }
+
+      // корнер кейсы
+      if (ThreeInRowCheker(our_set, index, flag) || ThreeInRowCheker(rival_set, index, rival_flag)) {
+        three_row = index;
+      }
+
+      if (ThreeWithSpaceCheker(our_set, index, flag) || ThreeWithSpaceCheker(rival_set, index, rival_flag)) {
+        if (found_index !== -1) {
+          three_row = found_index;
+        }
+      }
+
       value = attack - caution_const * defense; // ценность клетки (может меняться)
+      rival_value = caution_const * defense - attack;
       new_arr.push({val: value, ind: index}); // добавляем пару: ценность, индекс
+      new_rival_arr.push({val: rival_value, ind: index});
       value = 0;
+      rival_value = 0;
     }
   }
+  if (rival_win_turn !== -1) {
+    comp_turn = rival_win_turn;
+    rival_win_turn = -1;
+    return;
+  }
+  if (three_row !== -1) {
+    comp_turn = three_row;
+    three_row = -1;
+    return;
+  }
   new_arr.sort(comparePairs); // Сортируем по убыванию ценности клетки
+  new_rival_arr.sort(comparePairs); // Сортируем по убыванию ценности клетки
   let total_arr = new Array(0);
   let max_index = 0;
+  new_arr = MissTurn(our_set, rival_set, new_rival_arr[0].ind, flag, rival_flag);
   let max_value = new_arr[0].val;
+  if (new_arr.length === 1) {
+    comp_turn = new_arr[0].ind;
+    return;
+  }
   for (let i = 0; i < new_arr.length; ++i) {
     if (eps > max_value - new_arr[i].val) { // выбираем max_index элементов, отличающихся максимум на eps
       ++max_index;
@@ -286,6 +350,7 @@ function ReconstructBoardValues() { // Пересчитываем значени
   }
 
   comp_turn = arrayRandElement(total_arr); // выбираем случайный элемент в итоговом массиве
+  // comp_turn = new_arr[0].ind;
 }
 
 function CountCellValue(index, cur_player_set, rival_set, flag) { // функция посчета ценности клетки
@@ -310,7 +375,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          cnt_of_rival_stones += 1;
+          break;
         }
       } else {
         it_wont_fit = true;
@@ -321,7 +386,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
+    if (cnt_of_stones === param - 1) {
       found_winner_flag = true;
       return value;
     }
@@ -339,7 +404,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          cnt_of_rival_stones += 1;
+          break;
         }
       } else {
         it_wont_fit = true;
@@ -350,7 +415,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
+    if (cnt_of_stones === param - 1) {
       found_winner_flag = true;
       return value;
     }
@@ -367,7 +432,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          cnt_of_rival_stones += 1;
+          break;
         }
       } else {
         it_wont_fit = true;
@@ -378,7 +443,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
+    if (cnt_of_stones === param - 1) {
       found_winner_flag = true;
       return value;
     }
@@ -395,7 +460,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
           cnt_of_stones += 1;
         } else if (HasEl(rival_set, cur_index)) {
           cnt_of_stones = 0;
-          cnt_of_rival_stones += 1;
+          break;
         }
       } else {
         it_wont_fit = true;
@@ -406,7 +471,7 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
     }
     value += (param - cnt_of_stones);
     // value += cnt_of_stones;
-    if (cnt_of_stones === param - 1 || (cnt_of_rival_stones === rival_param - 2)) {
+    if (cnt_of_stones === param - 1) {
       found_winner_flag = true;
       return value;
     }
@@ -416,6 +481,256 @@ function CountCellValue(index, cur_player_set, rival_set, flag) { // функц�
   }
 
   return 1 / value;
+}
+
+function ThreeWithSpaceCheker(player, index, flag) {
+  let counter = 0;
+  let param = x + 1;
+  if (flag === 2) {
+    param = y + 1;
+  }
+  let free_space = false;
+
+  let j = index % w;
+  let i = (index - j) / w; // w * i + j
+
+  let cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * i + (j + param - 1);
+  if ((j + param - 1 < w) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (j + k >= w) {
+      break;
+    }
+    cur_index = w * i + (j + k);
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && !free_space) {
+      free_space = true;
+      found_index = cur_index;
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && free_space) {
+      break
+    }
+  }
+  if (param === counter) {
+    return true;
+  }
+
+  counter = 0;
+  free_space = false;
+  found_index = -1;
+
+  cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * (i + param - 1) + (j);
+  if ((i + param - 1 < h) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (i + k >= h) {
+      break;
+    }
+    let cur_index = w * (i + k) + j;
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && !free_space) {
+      free_space = true;
+      found_index = cur_index;
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && free_space) {
+      break
+    }
+  }
+  if (param === counter) {
+    return true;
+  }
+
+  counter = 0;
+  found_index = -1;
+  free_space = false;
+
+  cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * (i + param - 1) + (j + param - 1);
+  if ((i + param - 1 < h && j + param - 1 < w) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (j + k >= w || i + k >= h) {
+      break;
+    }
+    let cur_index = w * (i + k) + (j + k);
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && !free_space) {
+      free_space = true;
+      found_index = cur_index;
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && free_space) {
+      break
+    }
+  }
+
+  if (param === counter) {
+    return true;
+  }
+
+  counter = 0;
+  free_space = false;
+  found_index = -1;
+
+  cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * (i + param - 1) + (j - param + 1);
+  if ((i + param - 1 < h && j - param + 1 >= 0) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (j - k < 0 || i + k >= h) {
+      break;
+    }
+    let cur_index = w * (i + k) + (j - k);
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && !free_space) {
+      free_space = true;
+      found_index = cur_index;
+      counter += 1;
+    } else if (!HasEl(cur_arr, cur_index) && free_space) {
+      break
+    }
+  }
+
+  return (param === counter);
+
+}
+
+function ThreeInRowCheker(player, index, flag) { // для подсчета выигрыша
+  let counter = 0;
+  let param = x;
+  if (flag === 2) {
+    param = y;
+  }
+
+  let j = index % w;
+  let i = (index - j) / w; // w * i + j
+
+  let cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * i + (j + param - 1);
+  if ((j + param - 1 < w) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (j + k >= w) {
+      break;
+    }
+    cur_index = w * i + (j + k);
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else {
+      break;
+    }
+  }
+  if (param === counter) {
+    return true;
+  }
+
+  counter = 0;
+
+  cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * (i + param - 1) + (j);
+  if ((i + param - 1 < h) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (i + k >= h) {
+      break;
+    }
+    let cur_index = w * (i + k) + j;
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else {
+      break;
+    }
+  }
+  if (param === counter) {
+    return true;
+  }
+
+  counter = 0;
+
+  cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * (i + param - 1) + (j + param - 1);
+  if ((i + param - 1 < h && j + param - 1 < w) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (j + k >= w || i + k >= h) {
+      break;
+    }
+    let cur_index = w * (i + k) + (j + k);
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else {
+      break;
+    }
+  }
+
+  if (param === counter) {
+    return true;
+  }
+
+  counter = 0;
+
+  cur_index = w * i + (j);
+  if (!HasEl(cur_arr, cur_index)) {
+    counter += 1;
+  }
+  cur_index = w * (i + param - 1) + (j - param + 1);
+  if ((i + param - 1 < h && j - param + 1 >= 0) && (!HasEl(cur_arr, cur_index))) {
+    counter += 1;
+  }
+
+  for (let k = 1; k < param - 1; ++k) { // or - 1
+    if (j - k < 0 || i + k >= h) {
+      break;
+    }
+    let cur_index = w * (i + k) + (j - k);
+    if (HasEl(player, cur_index)) {
+      counter += 1;
+    } else {
+      break;
+    }
+  }
+
+  return (param === counter);
 }
 
 function FourLinesCounter(player, index, flag) { // для подсчета выигрыша
@@ -496,10 +811,16 @@ function FourLinesCounter(player, index, flag) { // для подсчета вы
 function WinCheker() { // функция, смотрящая есть ли победитель
   for (let index = 0; index < h * w; ++index) {
     if (HasEl(player1_arr, index) && FourLinesCounter(player1_arr, index, 1)) {
-        alert("First player is a winner!");
+        if (cnt_of_win_alerts === 0) {
+          alert("First player is a winner!");
+          cnt_of_win_alerts += 1;
+        }
         return true;
     } else if (HasEl(player2_arr, index) && FourLinesCounter(player2_arr, index, 2)) {
-        alert("Second player is a winner!");
+        if (cnt_of_win_alerts === 0) {
+          alert("Second player is a winner!");
+          cnt_of_win_alerts += 1;
+        }
         return true;
     }
   }
@@ -559,6 +880,8 @@ async function PutStone(id) { // функция вставки камня, об�
     }
 
     turn_cnt = cur_pos;
+    RefreshTurnWindow(h * w);
+    cnt_of_win_alerts = 0;
     found_winner_flag = false;
   } else if (cur_pos !== turn_cnt && human_turn === false) {
     return;
@@ -581,6 +904,7 @@ async function PutStone(id) { // функция вставки камня, об�
   cur_pos = turn_cnt;
   human_turn = false;
 
+  RefreshTurnWindow(h * w);
   await delay(200);
   if (WinCheker()) { // проверяем, появился ли победитель
     return;
@@ -596,7 +920,6 @@ async function PutStone(id) { // функция вставки камня, об�
   } else { // следующим ходит человек
       human_turn = true;
   }
-  RefreshTurnWindow(h * w);
 }
 
 function AIturn() { // Ход компьютера
